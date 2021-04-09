@@ -6,7 +6,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 
+import datetime
 import os
+import jwt
 
 # Create your views here.
 
@@ -16,7 +18,7 @@ import os
 @permission_classes([AllowAny])
 @authentication_classes([])
 def users_list(request):
-    print(os.environ.get("FOO"))
+
     if request.method == 'GET':
         users = ExtendedUser.objects.all()
         serializer = UserSerializer(users, many=True)
@@ -31,11 +33,25 @@ def create_user(request):
         try:
             if serializer.is_valid():
                 serializer.save()
-
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                encoded = jwt.encode({"id": serializer.data["id"], "email": serializer.data["email"], "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=30)}, os.environ.get(
+                    "JWTKEY"), algorithm="HS256")
+                return Response({**serializer.data, "token": encoded}, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except KeyError as error:
             print("Catch KeyError:", error)
             return Response({"error": "Keyerror"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def change_user(request, id):
+    try:
+        user = ExtendedUser.objects.get(pk=id)
+        print("User:", user)
+    except ExtendedUser.DoesNotExist:
+        return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
