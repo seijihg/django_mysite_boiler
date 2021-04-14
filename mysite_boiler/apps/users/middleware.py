@@ -1,5 +1,4 @@
-from rest_framework import status
-from rest_framework.response import Response
+import re
 from django.http import JsonResponse
 import jwt
 import os
@@ -20,15 +19,18 @@ def user_middleware(get_response):
         # the view (and later middleware) are called.
 
         path_splitted = list(filter(None, request.path.split("/")))
-        print(path_splitted)
 
         # Route needs to match the below.
         if request.method == "GET" and (check_path("users", path_splitted) or check_path("user", path_splitted)):
             try:
                 auth_header = request.META["HTTP_AUTHORIZATION"]
                 token = auth_header.split(" ")[-1]
-                jwt.decode(token, os.environ.get(
+                decoded = jwt.decode(token, os.environ.get(
                     "JWTKEY"), algorithms="HS256")
+
+                # Passing decoded token to view.
+                request.token = decoded
+
             except KeyError as error:
                 print("Catch KeyError:", error)
                 return JsonResponse({"error": "Not Authenticated."}, status=401)
@@ -40,6 +42,7 @@ def user_middleware(get_response):
                 return JsonResponse({"error": str(error)}, status=401)
             except Exception as error:
                 print("Error type:", type(error))
+                print(error)
                 return JsonResponse({"error": "Something went wrong. Contact administrator."}, status=400)
 
         response = get_response(request)
